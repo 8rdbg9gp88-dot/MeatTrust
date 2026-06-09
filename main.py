@@ -5,11 +5,10 @@ import xml.etree.ElementTree as ET
 import os
 from dotenv import load_dotenv
 import plotly.express as px
-import urllib.parse # 🔥 문자 서식을 인터넷 링크로 바꿔주는 도구 추가!
+import urllib.parse
 
 load_dotenv()
 
-# 1. 페이지 설정 및 테마
 st.set_page_config(page_title="MeatTrust 도축 정보 시스템", layout="wide")
 st.markdown("""
 <style>
@@ -19,7 +18,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 2. 인트로 화면
 if "intro_done" not in st.session_state:
     st.markdown("""
         <div style="background-image: linear-gradient(rgba(27, 42, 71, 0.7), rgba(27, 42, 71, 0.7)), url('https://images.unsplash.com/photo-1607623814075-e51df1bd682f?q=80&w=2000&auto=format&fit=crop');
@@ -35,7 +33,7 @@ if "intro_done" not in st.session_state:
             st.rerun()
     st.stop()
 
-# 3. 데이터 로드
+# 도축 실적 API (B2B용)
 @st.cache_data
 def fetch_api_data():
     api_key = os.environ.get("MAFRA_API_KEY")
@@ -52,15 +50,32 @@ def fetch_api_data():
     except:
         return pd.DataFrame()
 
+# 🥩 축산물 이력제 API (B2C용 - 새로 추가됨!)
+@st.cache_data
+def fetch_trace_data(trace_no):
+    api_key = os.environ.get("TRACE_API_KEY") # 새로운 이력제 전용 키
+    if not api_key: return "NO_KEY"
+    url = f"http://data.ekape.or.kr/openapi-data/service/user/animalTrace/traceNoSearch?traceNo={trace_no}&ServiceKey={api_key}"
+    try:
+        response = requests.get(url)
+        root = ET.fromstring(response.content)
+        # API 응답에서 결과 코드 확인 (00이 정상)
+        result_code = root.find('.//resultCode')
+        if result_code is not None and result_code.text == '00':
+            item = root.find('.//item')
+            if item is not None:
+                return {child.tag: child.text for child in item}
+        return None
+    except:
+        return None
+
 df_api = fetch_api_data()
 
-# 4. 메인 화면 UI
 st.title("🥩 MeatTrust - 전국 축산물 AI 매칭 플랫폼")
 st.markdown("---")
 
 tab1, tab2 = st.tabs(["🏢 기업용(B2B) 맞춤 매칭", "🛒 소비자(B2C) 안심 조회"])
 
-# --- 기업용(B2B) 탭 ---
 with tab1:
     st.subheader("📊 실시간 시장 통계 대시보드")
     g_col1, g_col2 = st.columns(2)
@@ -101,21 +116,16 @@ with tab1:
                         st.markdown(f"<h3 style='color: #1B2A47;'>{medals[i]}: {row['SLAU_PLACE_NM']}</h3>", unsafe_allow_html=True)
                         st.write(f"📍 지역: {row['CTRD_NM']} | 🥩 취급: {row['LVSTCKSPC_NM']} | 📦 당월 도축량: {int(row['THSMON']):,}두")
                         
-                        # 🔥 새로 추가된 마법의 팝업 문의 창!
                         with st.popover("📞 이 업체에 견적/주문 문의하기"):
                             st.markdown(f"**[{row['SLAU_PLACE_NM']}] 문의 방식 선택**")
                             st.link_button("📱 바로 전화 걸기", "tel:010-0000-0000", use_container_width=True)
-                            
                             st.divider()
                             st.markdown("💬 **문자 견적서 자동 완성**")
                             q_type = st.selectbox("문의 육종", row['LVSTCKSPC_NM'].split(', '), key=f"q_type_{i}")
                             q_amount = st.text_input("필요 수량", placeholder="예: 돼지 반마리, 100kg", key=f"q_amt_{i}")
                             q_memo = st.text_input("추가 요청사항", placeholder="예: 구이용으로 손질 부탁드립니다.", key=f"q_memo_{i}")
-                            
-                            # 작성한 내용을 스마트폰 문자로 쏘아주는 마법의 링크 생성
                             sms_text = f"[MeatTrust 견적문의]\n- 업체명: {row['SLAU_PLACE_NM']}\n- 육종: {q_type}\n- 수량: {q_amount}\n- 요청사항: {q_memo}"
                             sms_link = f"sms:010-0000-0000?body={urllib.parse.quote(sms_text)}"
-                            
                             st.link_button("✉️ 서식대로 문자 보내기", sms_link, use_container_width=True)
             else:
                 st.info("조건에 맞는 업체가 없습니다.")
@@ -130,24 +140,44 @@ with tab1:
         clean_df.index += 1
         st.dataframe(clean_df, use_container_width=True)
 
-# --- 소비자(B2C) 탭 ---
 with tab2:
     st.markdown("<h3 style='text-align: center; color: #1B2A47;'>내가 먹는 고기 출처 및 위생 점수 조회</h3>", unsafe_allow_html=True)
     
-    # 🔥 이력번호 조회를 위한 라디오 버튼 추가
     search_type = st.radio("검색 기준을 선택하세요", ["🏭 업체명으로 검색", "🥩 고기 이력번호(바코드)로 검색"], horizontal=True)
     
     with st.form("search_form"):
         if search_type == "🏭 업체명으로 검색":
             search_query = st.text_input("", placeholder="예: 삼정산업, 우성식품")
         else:
-            search_query = st.text_input("", placeholder="포장지에 적힌 12자리 이력번호를 입력하세요 (예: 002123456789)")
+            search_query = st.text_input("", placeholder="포장지에 적힌 12자리 이력번호를 숫자만 입력하세요 (예: 002123456789)")
             
         submit_button = st.form_submit_button("🔍 안심 데이터 조회하기", use_container_width=True)
         
     if submit_button:
         if search_type == "🥩 고기 이력번호(바코드)로 검색":
-            st.info("🚧 고기 이력번호 조회 기능은 현재 '축산물이력제 API' 연동을 위해 데이터 준비 중입니다! (곧 업데이트 예정)")
+            if search_query:
+                trace_info = fetch_trace_data(search_query)
+                if trace_info == "NO_KEY":
+                    st.warning("🚧 서버 설정에 'TRACE_API_KEY' (이력제 인증키)가 등록되지 않았습니다. 관리자에게 문의하세요.")
+                elif trace_info:
+                    st.success("✅ 고기 이력 정보 조회가 완료되었습니다!")
+                    with st.container(border=True):
+                        # API에서 내려주는 데이터 태그명(예: pigNo, slaughterNm 등)에 맞춰 출력
+                        st.markdown(f"#### 🥩 이력번호: {search_query}")
+                        
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            st.write(f"**도축장명:** {trace_info.get('slaughterNm', '정보 없음')}")
+                            st.write(f"**도축일자:** {trace_info.get('slaughterDate', '정보 없음')}")
+                        with col_b:
+                            st.write(f"**축종:** {trace_info.get('lsTypeNm', '정보 없음')}")
+                            st.write(f"**등급:** {trace_info.get('gradeNm', '정보 없음')}")
+                            
+                        st.info("이 고기는 축산물위생관리법에 따라 정상적으로 도축 검사를 통과한 안전한 고기입니다.")
+                else:
+                    st.error("입력하신 이력번호에 해당하는 정보를 찾을 수 없습니다. (숫자 12자리를 다시 확인해주세요)")
+            else:
+                st.warning("이력번호를 입력해 주세요.")
         else:
             if search_query and not df_api.empty:
                 result_df = df_api[df_api['SLAU_PLACE_NM'].str.contains(search_query, na=False)].groupby(['SLAU_PLACE_NM', 'CTRD_NM']).agg({'LVSTCKSPC_NM': lambda x: ', '.join(sorted(set(x)))}).reset_index()
