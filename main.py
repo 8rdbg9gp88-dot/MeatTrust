@@ -33,7 +33,6 @@ if "intro_done" not in st.session_state:
             st.rerun()
     st.stop()
 
-# 도축 실적 API (B2B용)
 @st.cache_data
 def fetch_api_data():
     api_key = os.environ.get("MAFRA_API_KEY")
@@ -50,24 +49,35 @@ def fetch_api_data():
     except:
         return pd.DataFrame()
 
-# 🥩 축산물 이력제 API (B2C용 - 새로 추가됨!)
 @st.cache_data
 def fetch_trace_data(trace_no):
-    api_key = os.environ.get("TRACE_API_KEY") # 새로운 이력제 전용 키
+    api_key = os.environ.get("TRACE_API_KEY")
     if not api_key: return "NO_KEY"
-    url = f"http://data.ekape.or.kr/openapi-data/service/user/animalTrace/traceNoSearch?traceNo={trace_no}&ServiceKey={api_key}"
+    
+    # 🔥 실질적 해결책: 키 특수문자 깨짐 완벽 방지 코드
+    url = "http://data.ekape.or.kr/openapi-data/service/user/animalTrace/traceNoSearch"
+    params = {
+        "traceNo": trace_no,
+        "ServiceKey": urllib.parse.unquote(api_key) # 인코딩/디코딩 어느 키가 들어와도 안전하게 처리
+    }
+    
     try:
-        response = requests.get(url)
+        response = requests.get(url, params=params)
         root = ET.fromstring(response.content)
-        # API 응답에서 결과 코드 확인 (00이 정상)
+        
         result_code = root.find('.//resultCode')
         if result_code is not None and result_code.text == '00':
             item = root.find('.//item')
             if item is not None:
                 return {child.tag: child.text for child in item}
-        return None
-    except:
-        return None
+        
+        # 🔥 에러 발생 시, 뭉뚱그리지 않고 실제 서버 에러 메시지를 반환
+        msg = root.find('.//resultMsg')
+        error_msg = msg.text if msg is not None else "알 수 없는 응답 형식"
+        code = result_code.text if result_code is not None else "XX"
+        return f"API_ERROR: [{code}] {error_msg}"
+    except Exception as e:
+        return f"API_ERROR: 통신 실패 ({str(e)})"
 
 df_api = fetch_api_data()
 
@@ -158,13 +168,16 @@ with tab2:
             if search_query:
                 trace_info = fetch_trace_data(search_query)
                 if trace_info == "NO_KEY":
-                    st.warning("🚧 서버 설정에 'TRACE_API_KEY' (이력제 인증키)가 등록되지 않았습니다. 관리자에게 문의하세요.")
-                elif trace_info:
+                    st.warning("🚧 서버 설정에 'TRACE_API_KEY' (이력제 인증키)가 등록되지 않았습니다.")
+                elif isinstance(trace_info, str) and trace_info.startswith("API_ERROR:"):
+                    # 🔥 에러가 나면 실제 이유를 까발려주는 부분!
+                    st.error("⚠️ 공공데이터 서버에서 접근을 거부했습니다. 아래 메시지를 확인하세요.")
+                    st.code(trace_info)
+                    st.info("💡 팁: Streamlit Secrets 설정에서 키를 'Encoding(인코딩)' 키로 교체했는지 다시 확인해 주세요!")
+                elif isinstance(trace_info, dict):
                     st.success("✅ 고기 이력 정보 조회가 완료되었습니다!")
                     with st.container(border=True):
-                        # API에서 내려주는 데이터 태그명(예: pigNo, slaughterNm 등)에 맞춰 출력
                         st.markdown(f"#### 🥩 이력번호: {search_query}")
-                        
                         col_a, col_b = st.columns(2)
                         with col_a:
                             st.write(f"**도축장명:** {trace_info.get('slaughterNm', '정보 없음')}")
@@ -172,10 +185,9 @@ with tab2:
                         with col_b:
                             st.write(f"**축종:** {trace_info.get('lsTypeNm', '정보 없음')}")
                             st.write(f"**등급:** {trace_info.get('gradeNm', '정보 없음')}")
-                            
-                        st.info("이 고기는 축산물위생관리법에 따라 정상적으로 도축 검사를 통과한 안전한 고기입니다.")
+                        st.info("이 고기는 축산물위생관리법에 따라 정상적으로 검사를 통과한 안전한 고기입니다.")
                 else:
-                    st.error("입력하신 이력번호에 해당하는 정보를 찾을 수 없습니다. (숫자 12자리를 다시 확인해주세요)")
+                    st.error("입력하신 이력번호에 해당하는 정보를 찾을 수 없습니다.")
             else:
                 st.warning("이력번호를 입력해 주세요.")
         else:
