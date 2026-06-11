@@ -2,10 +2,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import base64
-import os
 
 # ==========================================
-# 1. 디자인 및 기본 설정
+# 1. 기본 웹사이트 설정
 # ==========================================
 st.set_page_config(page_title="Meatrust 도축 정보 시스템", layout="wide", initial_sidebar_state="collapsed")
 
@@ -15,134 +14,87 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] { gap: 24px; }
     .stTabs [data-baseweb="tab"] { color: #1B2A47; font-weight: bold; font-size: 1.1rem; }
     .stTabs [aria-selected="true"] { border-bottom-color: #E11D48 !important; color: #E11D48 !important; }
-    .stButton>button { background-color: #1B2A47; color: white; border-radius: 8px; font-weight: bold; border: none; }
-    .stButton>button:hover { background-color: #E11D48; color: white; }
-    .metric-card { background-color: white; padding: 20px; border-radius: 10px; border-top: 4px solid #E11D48; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 인트로 화면 (네가 올린 깃허브 사진 파일 100% 로드)
+# 2. 데이터 불러오기 (핵심 파트!)
 # ==========================================
-def get_base64_of_bin_file(bin_file):
+@st.cache_data
+def load_excel_data():
+    """깃허브에 올린 all_stats_data.csv 파일을 읽어옵니다."""
     try:
-        with open(bin_file, 'rb') as f:
-            data = f.read()
-        return base64.b64encode(data).decode()
-    except Exception:
-        return ""
+        # 엑셀 파일 읽기!
+        df = pd.read_csv("all_stats_data.csv")
+        
+        # YM(년월) 데이터를 보기 좋게 문자로 바꾸기
+        df['YM'] = df['YM'].astype(str) 
+        # 도축량(THSMON)을 숫자로 확실히 인식시키기
+        df['THSMON'] = pd.to_numeric(df['THSMON'], errors='coerce').fillna(0)
+        
+        return df, "성공"
+    except Exception as e:
+        return pd.DataFrame(), f"파일 읽기 에러: {str(e)}"
 
-if "intro_done" not in st.session_state:
-    # 네가 아까 깃허브에 올린 파일명 그대로 다시 연결!
-    bg_img_base64 = get_base64_of_bin_file("bg_image.jpg.png")
-    
-    if bg_img_base64:
-        bg_css = f"url('data:image/png;base64,{bg_img_base64}')"
-    else:
-        bg_css = "none"
-
-    st.markdown(f"""
-        <div style="background-color: #1B2A47; background-image: linear-gradient(rgba(27, 42, 71, 0.6), rgba(27, 42, 71, 0.6)), {bg_css};
-            background-size: cover; background-position: center; height: 85vh; border-radius: 20px; display: flex; flex-direction: column; justify-content: center; align-items: center; color: white; text-align: center; margin-bottom: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.2);">
-            <h1 style='font-size: 5rem; margin-bottom: 10px; color: white; font-weight: 900; letter-spacing: 2px;'>Meatrust</h1>
-            <p style='font-size: 1.5rem; color: #E0E0E0; margin-bottom: 30px;'>투명한 데이터가 만드는 신뢰, 전국 축산물 AI 매칭 플랫폼</p>
-            <div style="background-color: rgba(225, 29, 72, 0.9); padding: 10px 30px; border-radius: 30px; font-weight: bold; font-size: 1.2rem;">소비자와 바이어를 위한 안심 조회 시스템</div>
-        </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        if st.button("🚀 Meatrust 시스템 입장하기", use_container_width=True):
-            st.session_state.intro_done = True
-            st.rerun()
-    st.stop()
+# 데이터 로딩 실행
+df_stats, msg = load_excel_data()
 
 # ==========================================
-# 3. 내장형 안전 데이터 (발표 시연용 무적 세팅)
-# ==========================================
-df_stats = pd.DataFrame([
-    {"SLAU_PLACE_NM": "도드람엘피씨", "CTRD_NM": "경기", "LVSTCKSPC_NM": "돼지", "THSMON": 52310},
-    {"SLAU_PLACE_NM": "농협부천축산물", "CTRD_NM": "경기", "LVSTCKSPC_NM": "소", "THSMON": 12450},
-    {"SLAU_PLACE_NM": "우성식품", "CTRD_NM": "충북", "LVSTCKSPC_NM": "돼지", "THSMON": 38900},
-    {"SLAU_PLACE_NM": "사조산업", "CTRD_NM": "충남", "LVSTCKSPC_NM": "닭", "THSMON": 120500},
-    {"SLAU_PLACE_NM": "목우촌(김제)", "CTRD_NM": "전북", "LVSTCKSPC_NM": "돼지", "THSMON": 41200},
-    {"SLAU_PLACE_NM": "부경양돈농협", "CTRD_NM": "경남", "LVSTCKSPC_NM": "돼지", "THSMON": 60800},
-    {"SLAU_PLACE_NM": "농협고령축산물", "CTRD_NM": "경북", "LVSTCKSPC_NM": "소", "THSMON": 15600},
-    {"SLAU_PLACE_NM": "제주축협", "CTRD_NM": "제주", "LVSTCKSPC_NM": "돼지", "THSMON": 30500},
-    {"SLAU_PLACE_NM": "하림(익산)", "CTRD_NM": "전북", "LVSTCKSPC_NM": "닭", "THSMON": 250000},
-    {"SLAU_PLACE_NM": "다솔", "CTRD_NM": "전남", "LVSTCKSPC_NM": "오리", "THSMON": 85000},
-])
-
-def get_trace_info(trace_no):
-    trace_no = str(trace_no)
-    if trace_no.startswith('002'):
-        return {"slaughterNm": "농협음성축산물공판장", "slaughterDate": "2024-06-05", "lsTypeNm": "한우", "gradeNm": "1++등급", "farmAddr": "충청북도 음성군"}
-    elif trace_no.startswith('8'):
-        return {"slaughterNm": "(주)수입육가공센터", "slaughterDate": "2024-05-12", "lsTypeNm": "수입소고기", "gradeNm": "프라임", "farmAddr": "미국/호주 (수입)"}
-    else:
-        return {"slaughterNm": "부경양돈농협", "slaughterDate": "2024-06-10", "lsTypeNm": "돼지", "gradeNm": "1등급", "farmAddr": "경상남도 김해시"}
-
-# ==========================================
-# 4. 메인 화면 UI
+# 3. 메인 화면 UI (그래프 그리기)
 # ==========================================
 st.markdown("<h1 style='color: #1B2A47;'>🥩 Meatrust 대시보드</h1>", unsafe_allow_html=True)
-st.info("ℹ️ 현재 공공데이터포털 서버 불안정으로 인해, 시연용 데모 데이터를 사용하여 정상 구동됩니다.")
 st.markdown("---")
 
-tab_b2b, tab_b2c = st.tabs(["🏢 B2B 바이어 (도축장 실적)", "🛒 B2C 소비자 (고기 이력 조회)"])
+tab_b2b, tab_b2c = st.tabs(["🏢 B2B 바이어 (시도별 도축 실적)", "🛒 B2C 소비자 (이력 조회 - 준비 중)"])
 
 with tab_b2b:
-    st.markdown("<h3 style='color: #E11D48;'>📊 지역/육종별 도축 통계 및 파트너 발굴</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color: #E11D48;'>📊 지역/육종별 실적 분석</h3>", unsafe_allow_html=True)
     
-    col_filter, col_chart = st.columns([1, 2])
-    with col_filter:
-        with st.container(border=True):
-            st.subheader("🔍 정밀 필터")
-            region = st.selectbox("지역 (시/도)", ["전국", "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주", "서울"])
-            meat_type = st.multiselect("취급 육종", ["소", "돼지", "닭", "오리"], default=["돼지", "소"])
+    if df_stats.empty:
+        st.error(f"⚠️ 데이터를 불러오지 못했습니다. (원인: {msg}) \n깃허브에 'all_stats_data.csv' 파일이 잘 올라갔는지 확인해주세요!")
+    else:
+        # 데이터가 10년 치나 되니까, 날짜(년/월)를 선택하는 필터를 만들자!
+        month_list = sorted(df_stats['YM'].unique(), reverse=True)
+        
+        col_filter, col_chart = st.columns([1, 2.5])
+        
+        with col_filter:
+            with st.container(border=True):
+                st.subheader("🔍 정밀 필터")
+                # 년/월 선택 (기본값은 가장 최신 날짜)
+                selected_month = st.selectbox("조회 년/월", month_list)
+                # 지역 및 육종 선택
+                region = st.selectbox("지역 (시/도)", ["전국"] + list(df_stats['CTRD_NM'].unique()))
+                meat_type = st.multiselect("취급 육종", df_stats['LVSTCKSPC_NM'].unique(), default=["돼지", "소"])
 
-    with col_chart:
-        df_filtered = df_stats.copy()
-        if region != "전국":
-            df_filtered = df_filtered[df_filtered['CTRD_NM'].str.contains(region[:2], na=False)]
-        if meat_type:
-            df_filtered = df_filtered[df_filtered['LVSTCKSPC_NM'].isin(meat_type)]
-        
-        if not df_filtered.empty:
-            theme_colors = {'돼지': '#1B2A47', '소': '#E11D48', '닭': '#475569', '오리': '#94A3B8'}
+        with col_chart:
+            # 사용자가 선택한 필터대로 데이터 걸러내기
+            df_filtered = df_stats[df_stats['YM'] == selected_month].copy()
+            if region != "전국":
+                df_filtered = df_filtered[df_filtered['CTRD_NM'] == region]
+            if meat_type:
+                df_filtered = df_filtered[df_filtered['LVSTCKSPC_NM'].isin(meat_type)]
             
-            fig = px.bar(df_filtered.sort_values('THSMON', ascending=False), 
-                         x='SLAU_PLACE_NM', y='THSMON', color='LVSTCKSPC_NM',
-                         color_discrete_map=theme_colors, 
-                         title=f"📈 {region} 도축 물량 현황 (단위: 두)",
-                         labels={'SLAU_PLACE_NM': '도축장명', 'THSMON': '도축량', 'LVSTCKSPC_NM': '육종'})
-            st.plotly_chart(fig, use_container_width=True)
-        
-        st.subheader(f"🏆 {region} 지역 우수 도축 실적")
-        if not df_filtered.empty:
-            rank_df = df_filtered.groupby(['SLAU_PLACE_NM', 'CTRD_NM']).agg({'THSMON': 'sum', 'LVSTCKSPC_NM': lambda x: ', '.join(set(x))}).reset_index()
-            rank_df.columns = ['도축장명', '지역', '당월 도축량(두)', '취급육종']
-            rank_df = rank_df.sort_values('당월 도축량(두)', ascending=False).reset_index(drop=True)
-            rank_df.index += 1
-            st.dataframe(rank_df, use_container_width=True)
-        else:
-            st.warning("해당 조건의 도축장 데이터가 없습니다.")
+            # 그래프 그리기
+            if not df_filtered.empty:
+                theme_colors = {'돼지': '#1B2A47', '소': '#E11D48', '닭': '#475569', '오리': '#94A3B8'}
+                
+                # 지역과 육종별로 도축량 합치기
+                fig_df = df_filtered.groupby(['CTRD_NM', 'LVSTCKSPC_NM'])['THSMON'].sum().reset_index()
+                
+                fig = px.bar(fig_df.sort_values('THSMON', ascending=False), 
+                             x='CTRD_NM', y='THSMON', color='LVSTCKSPC_NM',
+                             color_discrete_map=theme_colors, 
+                             title=f"📈 {selected_month[:4]}년 {selected_month[4:]}월 도축 물량 현황 (단위: 두)",
+                             labels={'CTRD_NM': '지역명', 'THSMON': '도축량', 'LVSTCKSPC_NM': '육종'})
+                st.plotly_chart(fig, use_container_width=True)
+                
+                st.subheader("🏆 세부 실적 표")
+                rank_df = fig_df.sort_values('THSMON', ascending=False).reset_index(drop=True)
+                rank_df.index += 1
+                st.dataframe(rank_df, use_container_width=True)
+            else:
+                st.info("해당 조건의 데이터가 없습니다.")
 
 with tab_b2c:
-    st.markdown("<h3 style='color: #1B2A47; text-align: center;'>🥩 내가 먹는 고기, 어디서 왔을까?</h3>", unsafe_allow_html=True)
-    
-    col_a, col_b, col_c = st.columns([1, 2, 1])
-    with col_b:
-        with st.container(border=True):
-            trace_input = st.text_input("🔍 이력번호", placeholder="12자리 이력번호를 입력하세요 (예: 002129200127)")
-            if st.button("안심 데이터 조회하기", type="primary", use_container_width=True):
-                if trace_input:
-                    trace_data = get_trace_info(trace_input)
-                    st.success("✅ 안전관리인증(HACCP)을 통과한 정상적인 고기입니다.")
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        st.markdown(f"**🏭 도축장명:** {trace_data.get('slaughterNm', '정보없음')}")
-                        st.markdown(f"**📅 도축일자:** {trace_data.get('slaughterDate', '정보없음')}")
-                    with c2:
-                        st.markdown(f"**🥩 축종 및 등급:** {trace_data.get('lsTypeNm', '')} ({trace_data.get('gradeNm', '')})")
-                        st.markdown(f"**🏡 사육지:** {trace_data.get('farmAddr', '정보없음')}")
+    st.info("이력번호 조회 기능은 현재 점검 및 데이터 연동 준비 중입니다.")
