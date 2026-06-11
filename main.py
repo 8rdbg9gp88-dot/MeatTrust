@@ -3,12 +3,10 @@ import pandas as pd
 import requests
 import xml.etree.ElementTree as ET
 import os
-from dotenv import load_dotenv
 import plotly.express as px
 import urllib.parse
 
-load_dotenv()
-
+# 페이지 기본 설정
 st.set_page_config(page_title="MeatTrust 도축 정보 시스템", layout="wide")
 st.markdown("""
 <style>
@@ -18,6 +16,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# 인트로 화면
 if "intro_done" not in st.session_state:
     st.markdown("""
         <div style="background-image: linear-gradient(rgba(27, 42, 71, 0.7), rgba(27, 42, 71, 0.7)), url('https://images.unsplash.com/photo-1607623814075-e51df1bd682f?q=80&w=2000&auto=format&fit=crop');
@@ -33,6 +32,7 @@ if "intro_done" not in st.session_state:
             st.rerun()
     st.stop()
 
+# 🟢 1번 API: 농림부 통계 데이터 (MAFRA_API_KEY 사용)
 @st.cache_data
 def fetch_api_data():
     api_key = os.environ.get("MAFRA_API_KEY")
@@ -49,16 +49,16 @@ def fetch_api_data():
     except:
         return pd.DataFrame()
 
-@st.cache_data
+# 🟢 2번 API: 공공데이터포털 이력제 데이터 (TRACE_API_KEY 사용)
+@st.cache_data(ttl=60) # 에러나도 60초 뒤에 다시 시도하도록 설정
 def fetch_trace_data(trace_no):
     api_key = os.environ.get("TRACE_API_KEY")
     if not api_key: return "NO_KEY"
     
-    # 🔥 실질적 해결책: 키 특수문자 깨짐 완벽 방지 코드
     url = "http://data.ekape.or.kr/openapi-data/service/user/animalTrace/traceNoSearch"
     params = {
         "traceNo": trace_no,
-        "ServiceKey": urllib.parse.unquote(api_key) # 인코딩/디코딩 어느 키가 들어와도 안전하게 처리
+        "ServiceKey": urllib.parse.unquote(api_key) 
     }
     
     try:
@@ -71,7 +71,6 @@ def fetch_trace_data(trace_no):
             if item is not None:
                 return {child.tag: child.text for child in item}
         
-        # 🔥 에러 발생 시, 뭉뚱그리지 않고 실제 서버 에러 메시지를 반환
         msg = root.find('.//resultMsg')
         error_msg = msg.text if msg is not None else "알 수 없는 응답 형식"
         code = result_code.text if result_code is not None else "XX"
@@ -79,6 +78,7 @@ def fetch_trace_data(trace_no):
     except Exception as e:
         return f"API_ERROR: 통신 실패 ({str(e)})"
 
+# 메인 화면 그리기
 df_api = fetch_api_data()
 
 st.title("🥩 MeatTrust - 전국 축산물 AI 매칭 플랫폼")
@@ -140,26 +140,15 @@ with tab1:
             else:
                 st.info("조건에 맞는 업체가 없습니다.")
 
-    st.divider()
-    
-    st.subheader("📈 실시간 도축 업체 전체 순위표")
-    if not df_api.empty:
-        clean_df = df_api.groupby(['SLAU_PLACE_NM', 'CTRD_NM']).agg({'LVSTCKSPC_NM': lambda x: ', '.join(sorted(set(x))), 'THSMON': 'sum'}).reset_index()
-        clean_df.columns = ['업체명', '지역', '취급 육종', '도축량(두)']
-        clean_df = clean_df[['지역', '업체명', '취급 육종', '도축량(두)']].sort_values(by='도축량(두)', ascending=False).reset_index(drop=True)
-        clean_df.index += 1
-        st.dataframe(clean_df, use_container_width=True)
-
 with tab2:
     st.markdown("<h3 style='text-align: center; color: #1B2A47;'>내가 먹는 고기 출처 및 위생 점수 조회</h3>", unsafe_allow_html=True)
-    
     search_type = st.radio("검색 기준을 선택하세요", ["🏭 업체명으로 검색", "🥩 고기 이력번호(바코드)로 검색"], horizontal=True)
     
     with st.form("search_form"):
         if search_type == "🏭 업체명으로 검색":
             search_query = st.text_input("", placeholder="예: 삼정산업, 우성식품")
         else:
-            search_query = st.text_input("", placeholder="포장지에 적힌 12자리 이력번호를 숫자만 입력하세요 (예: 002123456789)")
+            search_query = st.text_input("", placeholder="포장지에 적힌 12자리 이력번호를 숫자만 입력하세요 (예: 002144366294)")
             
         submit_button = st.form_submit_button("🔍 안심 데이터 조회하기", use_container_width=True)
         
@@ -168,12 +157,9 @@ with tab2:
             if search_query:
                 trace_info = fetch_trace_data(search_query)
                 if trace_info == "NO_KEY":
-                    st.warning("🚧 서버 설정에 'TRACE_API_KEY' (이력제 인증키)가 등록되지 않았습니다.")
+                    st.warning("🚧 서버 설정에 'TRACE_API_KEY'가 등록되지 않았습니다.")
                 elif isinstance(trace_info, str) and trace_info.startswith("API_ERROR:"):
-                    # 🔥 에러가 나면 실제 이유를 까발려주는 부분!
-                    st.error("⚠️ 공공데이터 서버에서 접근을 거부했습니다. 아래 메시지를 확인하세요.")
-                    st.code(trace_info)
-                    st.info("💡 팁: Streamlit Secrets 설정에서 키를 'Encoding(인코딩)' 키로 교체했는지 다시 확인해 주세요!")
+                    st.error(f"⚠️ 에러 발생! 아래 메시지를 확인하세요.\n{trace_info}")
                 elif isinstance(trace_info, dict):
                     st.success("✅ 고기 이력 정보 조회가 완료되었습니다!")
                     with st.container(border=True):
@@ -185,21 +171,7 @@ with tab2:
                         with col_b:
                             st.write(f"**축종:** {trace_info.get('lsTypeNm', '정보 없음')}")
                             st.write(f"**등급:** {trace_info.get('gradeNm', '정보 없음')}")
-                        st.info("이 고기는 축산물위생관리법에 따라 정상적으로 검사를 통과한 안전한 고기입니다.")
                 else:
                     st.error("입력하신 이력번호에 해당하는 정보를 찾을 수 없습니다.")
             else:
                 st.warning("이력번호를 입력해 주세요.")
-        else:
-            if search_query and not df_api.empty:
-                result_df = df_api[df_api['SLAU_PLACE_NM'].str.contains(search_query, na=False)].groupby(['SLAU_PLACE_NM', 'CTRD_NM']).agg({'LVSTCKSPC_NM': lambda x: ', '.join(sorted(set(x)))}).reset_index()
-                if not result_df.empty:
-                    st.success(f"'{search_query}'(으)로 검색된 결과입니다.")
-                    for _, row in result_df.iterrows():
-                        with st.container(border=True):
-                            st.markdown(f"#### 🏭 {row['SLAU_PLACE_NM']}")
-                            st.write(f"**위치:** {row['CTRD_NM']}")
-                            st.write(f"**취급 육류:** {row['LVSTCKSPC_NM']}")
-                            st.write("**안심 식별 코드:** 정상 등록 업체 ✅")
-                else:
-                    st.error("일치하는 업체 정보가 없습니다.")
