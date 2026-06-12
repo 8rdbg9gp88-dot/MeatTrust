@@ -21,7 +21,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 인트로(대문) 화면 (배경사진 자동 인식)
+# 2. 인트로(대문) 화면 (배경사진 위에 제목 띄우기)
 # ==========================================
 def get_base64_of_bin_file(bin_file):
     try:
@@ -31,45 +31,44 @@ def get_base64_of_bin_file(bin_file):
     except Exception:
         return ""
 
-def find_bg_image():
-    # 혹시 파일명이 다를까 봐 여러 개를 다 찾아보게 만듦!
-    possible_names = ["bg_image.jpg.png", "bg_image.jpg", "bg_image.png", "bg.jpg", "bg.png"]
-    for name in possible_names:
-        if os.path.exists(name):
-            return get_base64_of_bin_file(name)
-    return ""
-
 if "intro_done" not in st.session_state:
-    bg_img_base64 = find_bg_image()
-    
-    # 사진이 있으면 사진을, 없으면 세련된 네이비 그라데이션을 띄움
-    if bg_img_base64:
-        bg_css = f"url('data:image/png;base64,{bg_img_base64}')"
-    else:
-        bg_css = "linear-gradient(135deg, #0F2027, #203A43, #2C5364)"
+    # 사진 파일 읽어오기 (파일명이 맞는지 꼭 확인!)
+    bg_img_base64 = get_base64_of_bin_file("bg_image.jpg.png")
+    bg_css = f"url('data:image/png;base64,{bg_img_base64}')" if bg_img_base64 else "none"
 
+    # 사진 위에 까만 반투명 필터를 깔고, 그 위에 흰색 제목을 올리는 마법의 HTML/CSS!
     st.markdown(f"""
-        <div style="background-image: linear-gradient(rgba(15, 32, 39, 0.7), rgba(15, 32, 39, 0.7)), {bg_css};
-            background-size: cover; background-position: center; height: 90vh; border-radius: 20px; 
-            display: flex; flex-direction: column; justify-content: center; align-items: center; 
-            color: white; text-align: center; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
-            
-            <h1 style='font-size: 6rem; margin-bottom: 10px; color: white; font-weight: 900; letter-spacing: 4px; text-shadow: 2px 2px 10px rgba(0,0,0,0.5);'>Meatrust</h1>
-            <p style='font-size: 1.8rem; color: #E0E0E0; margin-bottom: 40px; text-shadow: 1px 1px 5px rgba(0,0,0,0.5);'>투명한 데이터가 만드는 신뢰, 전국 축산물 AI 매칭 플랫폼</p>
-            
-            <div style="background-color: #E11D48; padding: 12px 40px; border-radius: 30px; font-weight: bold; font-size: 1.3rem; box-shadow: 0 4px 15px rgba(225, 29, 72, 0.4);">
-                소비자와 바이어를 위한 안심 조회 시스템
-            </div>
+        <div style="
+            background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), {bg_css};
+            background-size: cover;
+            background-position: center;
+            height: 80vh;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            margin-bottom: 30px;
+        ">
+            <h1 style='font-size: 5.5rem; color: #FFFFFF; font-weight: 900; letter-spacing: 5px; text-shadow: 3px 3px 15px rgba(0,0,0,0.8); margin-bottom: 10px;'>
+                Meatrust
+            </h1>
+            <p style='font-size: 1.6rem; color: #F8F9FA; text-shadow: 2px 2px 8px rgba(0,0,0,0.8); margin-bottom: 30px;'>
+                투명한 데이터가 만드는 신뢰, 전국 축산물 AI 매칭 플랫폼
+            </p>
         </div>
     """, unsafe_allow_html=True)
     
-    st.write("") # 버튼 위 여백
+    # 시스템 입장 버튼
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         if st.button("🚀 Meatrust 시스템 입장하기", use_container_width=True):
             st.session_state.intro_done = True
             st.rerun()
-    st.stop() # 💡 여기서 멈춤! 입장하기 버튼을 누르기 전엔 대시보드를 안 보여줌!
+            
+    st.stop() # 💡 버튼 누르기 전까지 메인 화면(그래프) 안 보여주고 여기서 대기!
 
 # ==========================================
 # 3. 데이터 로드 (시도별 + 도축장별 완벽 통합)
