@@ -21,8 +21,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 인트로(대문) 화면 (배경사진 위에 제목 띄우기)
+# 2. 인트로(대문) 화면 (bg_image.jpg 완벽 적용)
 # ==========================================
+import base64
+
 def get_base64_of_bin_file(bin_file):
     try:
         with open(bin_file, 'rb') as f:
@@ -32,14 +34,19 @@ def get_base64_of_bin_file(bin_file):
         return ""
 
 if "intro_done" not in st.session_state:
-    # 사진 파일 읽어오기 (파일명이 맞는지 꼭 확인!)
-    bg_img_base64 = get_base64_of_bin_file("bg_image.jpg.png")
-    bg_css = f"url('data:image/png;base64,{bg_img_base64}')" if bg_img_base64 else "none"
+    # 💡 네가 정해둔 파일명 그대로 딱 고정!
+    bg_img_base64 = get_base64_of_bin_file("bg_image.jpg")
+    
+    # 💡 jpg 전용 코드로 수정 (image/jpeg)
+    if bg_img_base64:
+        bg_css = f"url('data:image/jpeg;base64,{bg_img_base64}')"
+    else:
+        bg_css = "none"
 
-    # 사진 위에 까만 반투명 필터를 깔고, 그 위에 흰색 제목을 올리는 마법의 HTML/CSS!
     st.markdown(f"""
         <div style="
             background-image: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), {bg_css};
+            background-color: #1B2A47;
             background-size: cover;
             background-position: center;
             height: 80vh;
@@ -61,14 +68,13 @@ if "intro_done" not in st.session_state:
         </div>
     """, unsafe_allow_html=True)
     
-    # 시스템 입장 버튼
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         if st.button("🚀 Meatrust 시스템 입장하기", use_container_width=True):
             st.session_state.intro_done = True
             st.rerun()
             
-    st.stop() # 💡 버튼 누르기 전까지 메인 화면(그래프) 안 보여주고 여기서 대기!
+    st.stop()
 
 # ==========================================
 # 3. 데이터 로드 (시도별 + 도축장별 완벽 통합)
