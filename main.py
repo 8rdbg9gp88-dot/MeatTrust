@@ -125,17 +125,37 @@ with tab_b2b:
         
         with col_filter:
             with st.container(border=True):
+                # 타겟 데이터 설정 및 연도/월 컬럼 분리
                 target_df = df_reg if view_mode == "시/도별 거시 통계" else df_slau
+                target_df = target_df.copy() # 원본 데이터 보호
+                target_df['Year'] = target_df['YM'].str[:4]
+                target_df['Month'] = target_df['YM'].str[4:]
                 region_col = 'CTRD_NM' if view_mode == "시/도별 거시 통계" else 'SLAU_PLACE_NM'
                 
-                month_list = sorted(target_df['YM'].unique(), reverse=True)
-                selected_month = st.selectbox("📅 조회 년/월", month_list)
+                # 💡 1. 연도 선택 (깔끔하게 연도만 보여줌)
+                year_list = sorted(target_df['Year'].unique(), reverse=True)
+                selected_year = st.selectbox("📅 연도 선택", year_list)
                 
+                # 💡 2. 월 선택 (해당 연도의 월만 보여주되, '전체 합산' 기능 추가!)
+                available_months = sorted(target_df[target_df['Year'] == selected_year]['Month'].unique())
+                month_list = ["전체 (1년치 합산)"] + available_months
+                selected_month = st.selectbox("🗓️ 월 선택", month_list)
+                
+                # 3. 지역 및 육종 필터
                 search_region = st.selectbox("📍 지역 필터", ["전국"] + list(target_df['CTRD_NM'].unique()))
                 meat_type = st.multiselect("🥩 취급 육종", target_df['LVSTCKSPC_NM'].unique(), default=["돼지", "소"])
 
         with col_chart:
-            df_filtered = target_df[target_df['YM'] == selected_month].copy()
+            # 💡 연도 먼저 필터링
+            df_filtered = target_df[target_df['Year'] == selected_year].copy()
+            
+            # 💡 '전체'를 고르면 해당 연도의 모든 데이터를 합산하고, 특정 월을 고르면 그 달만 필터링!
+            if selected_month != "전체 (1년치 합산)":
+                df_filtered = df_filtered[df_filtered['Month'] == selected_month]
+                chart_title_date = f"{selected_year}년 {selected_month}월"
+            else:
+                chart_title_date = f"{selected_year}년 전체 누적"
+                
             if search_region != "전국":
                 df_filtered = df_filtered[df_filtered['CTRD_NM'] == search_region]
             if meat_type:
@@ -148,11 +168,11 @@ with tab_b2b:
                 fig = px.bar(fig_df.sort_values('THSMON', ascending=False).head(20), 
                              x=region_col, y='THSMON', color='LVSTCKSPC_NM',
                              color_discrete_map=theme_colors, 
-                             title=f"📈 {selected_month[:4]}년 {selected_month[4:]}월 도축 물량 현황 (TOP 20)",
-                             labels={region_col: '지역/도축장', 'THSMON': '당월 도축량', 'LVSTCKSPC_NM': '육종'})
+                             title=f"📈 {chart_title_date} 도축 물량 현황 (TOP 20)",
+                             labels={region_col: '지역/도축장', 'THSMON': '도축량(두)', 'LVSTCKSPC_NM': '육종'})
                 st.plotly_chart(fig, use_container_width=True)
                 
-                st.subheader("🏆 전체 세부 데이터 표")
+                st.subheader(f"🏆 {chart_title_date} 세부 데이터 표")
                 rank_df = fig_df.sort_values('THSMON', ascending=False).reset_index(drop=True)
                 rank_df.index += 1
                 rank_df.columns = ['지역/도축장명', '취급육종', '도축량(두)']
