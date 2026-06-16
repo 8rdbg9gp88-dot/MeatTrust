@@ -248,10 +248,9 @@ with tab_b2c:
                                     # 전문가용 전체 데이터 토글
                                     with st.expander("🔍 전문가용 상세 이력 정보 전체 보기"):
                                         # ==========================================
-                                    # 💡 [여기서부터 교체/추가] 한글 번역 사전 적용
-                                    # ==========================================
+                                        # 💡 [여기서부터 교체/추가] 한글 번역 사전 적용
+                                        # ==========================================
                                     with st.expander("🔍 전문가용 상세 이력 정보 전체 보기"):
-                                        # 정부 API의 영어 키값을 한글로 매핑해주는 사전
                                         kor_mapping = {
                                             "butcheryPlaceNm": "도축장명",
                                             "butcheryPlaceAddr": "도축장 주소",
@@ -277,15 +276,12 @@ with tab_b2c:
                                             "regYmd": "등록일자"
                                         }
                                         
-                                        # 기존 영어 키에 한글 설명을 덧붙인 새로운 딕셔너리 만들기
                                         translated_data = {}
                                         for key, value in extracted.items():
-                                            # 사전에 있으면 한글 뜻을 가져오고, 없으면 '기타 정보'로 표시
                                             kor_name = kor_mapping.get(key, "기타 정보")
                                             new_key = f"{key} ({kor_name})"
                                             translated_data[new_key] = value
                                             
-                                        # 한글이 포함된 예쁜 데이터로 화면에 출력!
                                         st.json(translated_data)
                                     # ==========================================
                                     # 💡 [여기까지]
