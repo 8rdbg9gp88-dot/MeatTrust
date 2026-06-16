@@ -1,3 +1,5 @@
+import requests
+import xml.etree.ElementTree as ET
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -180,33 +182,75 @@ with tab_b2b:
             else:
                 st.info("해당 조건에 맞는 데이터가 없습니다.")
 
-# ----------------- B2C 탭 -----------------
+# ----------------- B2C 탭 (실시간 연동 버전) -----------------
 with tab_b2c:
     st.markdown("<h3 style='color: #1B2A47; text-align: center;'>🥩 내가 먹는 고기, 어디서 왔을까?</h3>", unsafe_allow_html=True)
-    st.caption("ℹ️ 현재 축산물품질평가원 서버 동기화 작업으로 인해, [시연용 안전 모드]로 작동 중입니다.")
+    st.caption("⚡ 공공데이터포털(축산물품질평가원) 실시간 API 연동 중")
     
     col_a, col_b, col_c = st.columns([1, 2, 1])
     with col_b:
         with st.container(border=True):
             trace_input = st.text_input("🔍 이력번호 입력", placeholder="12자리 또는 묶음번호(L~)를 입력하세요")
             
-            if st.button("안심 데이터 조회하기", type="primary", use_container_width=True):
+            if st.button("실시간 안심 데이터 조회하기", type="primary", use_container_width=True):
                 if trace_input:
-                    st.success("✅ 축산물 이력제 정상 인증 완료! 안전한 고기입니다.")
-                    c1, c2 = st.columns(2)
-                    
-                    if trace_input.startswith(('L', 'l')):
-                        slau, date, t_type, grade, addr = "농업회사법인(주)", "2024-06-10", "돼지", "1등급", "충청남도 홍성군"
-                    elif trace_input.startswith(('002', '003')):
-                        slau, date, t_type, grade, addr = "농협음성축산물공판장", "2024-06-05", "한우", "1++등급", "충청북도 음성군"
-                    elif trace_input.startswith(('8', '9')):
-                        slau, date, t_type, grade, addr = "(주)수입육가공센터", "2024-05-12", "수입소고기", "프라임", "미국 (수입)"
-                    else:
-                        slau, date, t_type, grade, addr = "부경양돈농협", "2024-06-12", "돼지", "1등급", "경상남도 김해시"
-                        
-                    with c1:
-                        st.markdown(f"**🏭 도축장명:** {slau}")
-                        st.markdown(f"**📅 도축일자:** {date}")
-                    with c2:
-                        st.markdown(f"**🥩 축종(등급):** {t_type} ({grade})")
-                        st.markdown(f"**🏡 사육지:** {addr}")
+                    # ⏳ 서버 통신 중 로딩 애니메이션
+                    with st.spinner('축평원 서버에서 실시간으로 데이터를 불러오는 중입니다...'):
+                        try:
+                            api_url = "http://data.ekape.or.kr/openapi-data/service/user/animalTrace/traceNoSearch"
+                            
+                            # 🔑 반드시 마이페이지의 '디코딩(Decoding)' 인증키를 넣어주세요!
+                            api_key = "67a4fb7c6588efb629a2e9bb65590194497e3bf7e392f0f531f7b5337b91b2e2"
+                            
+                            params = {
+                                "ServiceKey": api_key,
+                                "traceNo": trace_input
+                            }
+                            
+                            res = requests.get(api_url, params=params)
+                            
+                            if "SERVICE KEY IS NOT REGISTERED ERROR" in res.text:
+                                st.error("❌ 서버 오류: 인증키가 아직 인식되지 않았습니다.")
+                            else:
+                                root = ET.fromstring(res.text)
+                                items = root.findall('.//item')
+                                
+                                if items:
+                                    st.success("✅ 축산물 이력제 정상 인증 완료! 안전한 고기입니다.")
+                                    
+                                    # 여러 <item>에 흩어진 정보를 하나의 딕셔너리로 합치기
+                                    extracted = {}
+                                    for item in items:
+                                        for child in item:
+                                            if child.text and child.text.strip():
+                                                extracted[child.tag] = child.text
+                                                
+                                    # 화면에 보여줄 핵심 정보 추출
+                                    slau = extracted.get('butcheryPlaceNm', '정보 없음')
+                                    date = extracted.get('butcheryYmd', '정보 없음')
+                                    t_type = extracted.get('lsTypeNm', '정보 없음')
+                                    grade = extracted.get('gradeNm', '정보 없음')
+                                    addr = extracted.get('farmAddr', '정보 없음')
+                                    
+                                    # 날짜 포맷팅 (20240616 -> 2024-06-16)
+                                    if len(date) == 8 and date.isdigit():
+                                        date = f"{date[:4]}-{date[4:6]}-{date[6:]}"
+                                    
+                                    # 결과 출력
+                                    c1, c2 = st.columns(2)
+                                    with c1:
+                                        st.markdown(f"**🏭 도축장명:** {slau}")
+                                        st.markdown(f"**📅 도축일자:** {date}")
+                                    with c2:
+                                        st.markdown(f"**🥩 축종(등급):** {t_type} ({grade})")
+                                        st.markdown(f"**🏡 사육지:** {addr}")
+                                        
+                                    # 전문가용 전체 데이터 토글
+                                    with st.expander("🔍 전문가용 상세 이력 정보 전체 보기"):
+                                        st.json(extracted)
+                                        
+                                else:
+                                    st.warning("⚠️ 입력하신 이력번호에 해당하는 정보가 없습니다. 번호를 다시 확인해주세요.")
+                                    
+                        except Exception as e:
+                            st.error(f"통신 중 에러가 발생했습니다: {e}")
