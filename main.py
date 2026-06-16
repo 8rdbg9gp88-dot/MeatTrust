@@ -247,7 +247,49 @@ with tab_b2c:
                                         
                                     # 전문가용 전체 데이터 토글
                                     with st.expander("🔍 전문가용 상세 이력 정보 전체 보기"):
-                                        st.json(extracted)
+                                        # ==========================================
+                                    # 💡 [여기서부터 교체/추가] 한글 번역 사전 적용
+                                    # ==========================================
+                                    with st.expander("🔍 전문가용 상세 이력 정보 전체 보기"):
+                                        # 정부 API의 영어 키값을 한글로 매핑해주는 사전
+                                        kor_mapping = {
+                                            "butcheryPlaceNm": "도축장명",
+                                            "butcheryPlaceAddr": "도축장 주소",
+                                            "butcheryYmd": "도축일자",
+                                            "lsTypeNm": "축종 (소의 종류)",
+                                            "gradeNm": "등급",
+                                            "farmAddr": "사육지/농장 주소",
+                                            "corpNo": "사업자번호",
+                                            "lotNo": "묶음번호",
+                                            "cattleNo": "소 개체번호",
+                                            "pigNo": "돼지 이력번호",
+                                            "histNo": "가금류(닭/오리) 이력번호",
+                                            "birthYmd": "출생일자",
+                                            "sexNm": "성별",
+                                            "farmerNm": "농장주/소유주명",
+                                            "processPlaceNm": "포장처리업소명",
+                                            "processPlaceAddr": "포장처리업소 주소",
+                                            "inspectPassYn": "위생검사 결과",
+                                            "farmUniqueNo": "농장식별번호",
+                                            "traceNoType": "이력/묶음 구분",
+                                            "infoType": "정보 분류코드",
+                                            "regType": "신고구분",
+                                            "regYmd": "등록일자"
+                                        }
+                                        
+                                        # 기존 영어 키에 한글 설명을 덧붙인 새로운 딕셔너리 만들기
+                                        translated_data = {}
+                                        for key, value in extracted.items():
+                                            # 사전에 있으면 한글 뜻을 가져오고, 없으면 '기타 정보'로 표시
+                                            kor_name = kor_mapping.get(key, "기타 정보")
+                                            new_key = f"{key} ({kor_name})"
+                                            translated_data[new_key] = value
+                                            
+                                        # 한글이 포함된 예쁜 데이터로 화면에 출력!
+                                        st.json(translated_data)
+                                    # ==========================================
+                                    # 💡 [여기까지]
+                                    # ==========================================
                                         
                                 else:
                                     st.warning("⚠️ 입력하신 이력번호에 해당하는 정보가 없습니다. 번호를 다시 확인해주세요.")
