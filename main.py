@@ -218,25 +218,21 @@ with tab_b2c:
                                 if items:
                                     st.success("✅ 축산물 이력제 정상 인증 완료! 안전한 고기입니다.")
                                     
-                                    # 여러 <item>에 흩어진 정보를 하나의 딕셔너리로 합치기
                                     extracted = {}
                                     for item in items:
                                         for child in item:
                                             if child.text and child.text.strip():
                                                 extracted[child.tag] = child.text
                                                 
-                                    # 화면에 보여줄 핵심 정보 추출
                                     slau = extracted.get('butcheryPlaceNm', '정보 없음')
                                     date = extracted.get('butcheryYmd', '정보 없음')
                                     t_type = extracted.get('lsTypeNm', '정보 없음')
                                     grade = extracted.get('gradeNm', '정보 없음')
                                     addr = extracted.get('farmAddr', '정보 없음')
                                     
-                                    # 날짜 포맷팅 (20240616 -> 2024-06-16)
                                     if len(date) == 8 and date.isdigit():
                                         date = f"{date[:4]}-{date[4:6]}-{date[6:]}"
                                     
-                                    # 결과 출력
                                     c1, c2 = st.columns(2)
                                     with c1:
                                         st.markdown(f"**🏭 도축장명:** {slau}")
@@ -245,11 +241,6 @@ with tab_b2c:
                                         st.markdown(f"**🥩 축종(등급):** {t_type} ({grade})")
                                         st.markdown(f"**🏡 사육지:** {addr}")
                                         
-                                    # 전문가용 전체 데이터 토글
-                                    with st.expander("🔍 전문가용 상세 이력 정보 전체 보기"):
-                                        # ==========================================
-                                        # 💡 [여기서부터 교체/추가] 한글 번역 사전 적용
-                                        # ==========================================
                                     with st.expander("🔍 전문가용 상세 이력 정보 전체 보기"):
                                         kor_mapping = {
                                             "butcheryPlaceNm": "도축장명",
@@ -275,17 +266,12 @@ with tab_b2c:
                                             "regType": "신고구분",
                                             "regYmd": "등록일자"
                                         }
-                                        
                                         translated_data = {}
                                         for key, value in extracted.items():
                                             kor_name = kor_mapping.get(key, "기타 정보")
                                             new_key = f"{key} ({kor_name})"
                                             translated_data[new_key] = value
-                                            
                                         st.json(translated_data)
-                                    # ==========================================
-                                    # 💡 [여기까지]
-                                    # ==========================================
                                         
                                 else:
                                     st.warning("⚠️ 입력하신 이력번호에 해당하는 정보가 없습니다. 번호를 다시 확인해주세요.")
