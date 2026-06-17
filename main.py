@@ -118,19 +118,20 @@ tab_b2b, tab_b2c = st.tabs(["🏢 B2B 바이어 (도축 실적 분석)", "🛒 B
 with tab_b2b:
     st.markdown("<h3 style='color: #E11D48;'>📊 지역 및 도축장별 세부 실적 분석</h3>", unsafe_allow_html=True)
     
-    if df_reg.empty or df_slau.empty:
-        st.error("⚠️ 데이터를 불러오지 못했습니다. 깃허브에 'all_stats_data.csv' 와 'slaughterhouse_by_type_stats.csv' 파일이 모두 있는지 확인해주세요.")
-    else:
-        view_mode = st.radio("🔍 분석 단위 선택", ["시/도별 거시 통계", "도축장별 미시 통계","🥩 샘플 이력(Sourcing) 품질/산지 검증"], 
-                                               horizontal=True
-                                            )
-        if view_mode == "🥩 샘플 이력(Sourcing) 품질/산지 검증":
+    view_mode = st.radio(
+        "🔍 분석 단위 선택", 
+        ["시/도별 거시 통계", "도축장별 미시 통계", "🥩 샘플 이력(Sourcing) 품질/산지 검증"], 
+        horizontal=True
+    )
+    
+    # ==========================================
+    # 💡 1. 새로 추가된 [이력제 품질/산지 증명] 파트
+    # ==========================================
+    if view_mode == "🥩 샘플 이력(Sourcing) 품질/산지 검증":
         st.markdown("#### 🔬 바이어 맞춤형: 확보된 고기(Lot)의 품질 및 산지 검증 보드")
         st.caption("💡 바이어가 구매를 검토 중인 이력/묶음번호 샘플들의 실제 품질을 추적한 결과입니다.")
         
         try:
-            import plotly.express as px
-            import pandas as pd
             df_trace = pd.read_csv("animal_traceability_data.csv")
             
             col_chart1, col_chart2 = st.columns(2)
@@ -183,54 +184,53 @@ with tab_b2b:
         except FileNotFoundError:
             st.error("⚠️ 깃허브 폴더에 'animal_traceability_data.csv' 파일이 없습니다. 파일을 업로드해주세요!")
             
-        st.divider()
-        # 2단계에서 붙여넣은 코드가 끝나는 곳!
-
-    # 👇 여기에 이 한 줄을 직접 새로 적어줘!
-    elif view_mode != "🥩 샘플 이력(Sourcing) 품질/산지 검증":
-    
-        # 👇 그리고 여기서부터 아래에 있는 네 '기존 코드 전부 다' 마우스로 드래그해서 블록을 씌운 다음, 
-            # 키보드 Tab 키를 딱 1번만 눌러서 오른쪽으로 한 칸 밀어 넣어줘!
-            if df_reg.empty or df_slau.empty: 
-                st.error(...)
-            
-            
+    # ==========================================
+    # 💡 2. 기존 통계 파트 (거시/미시 통계)
+    # ==========================================
+    else:  # <- 이 방어막 덕분에 버튼을 누를 때마다 화면이 깔끔하게 전환됩니다!
+        if df_reg.empty or df_slau.empty:
+            st.error("⚠️ 통계 데이터를 불러오지 못했습니다. 'all_stats_data.csv' 와 'slaughterhouse_by_type_stats.csv' 파일이 있는지 확인해주세요.")
+        else:
             col_filter, col_chart = st.columns([1, 2.5])
             
             with col_filter:
                 with st.container(border=True):
-                    # 타겟 데이터 설정 및 연도/월 컬럼 분리
                     target_df = df_reg if view_mode == "시/도별 거시 통계" else df_slau
-                    target_df = target_df.copy() # 원본 데이터 보호
-                    target_df['Year'] = target_df['YM'].str[:4]
-                    target_df['Month'] = target_df['YM'].str[4:]
+                    target_df = target_df.copy()
+                    
+                    if 'YM' in target_df.columns:
+                        target_df['Year'] = target_df['YM'].str[:4]
+                        target_df['Month'] = target_df['YM'].str[4:]
+                    else:
+                        target_df['Year'] = "2024"
+                        target_df['Month'] = "01"
+                        
                     region_col = 'CTRD_NM' if view_mode == "시/도별 거시 통계" else 'SLAU_PLACE_NM'
                     
-                    # 💡 1. 연도 선택 (깔끔하게 연도만 보여줌)
                     year_list = sorted(target_df['Year'].unique(), reverse=True)
                     selected_year = st.selectbox("📅 연도 선택", year_list)
                     
-                    # 💡 2. 월 선택 (해당 연도의 월만 보여주되, '전체 합산' 기능 추가!)
                     available_months = sorted(target_df[target_df['Year'] == selected_year]['Month'].unique())
                     month_list = ["전체 (1년치 합산)"] + available_months
                     selected_month = st.selectbox("🗓️ 월 선택", month_list)
                     
-                    # 3. 지역 및 육종 필터
-                    search_region = st.selectbox("📍 지역 필터", ["전국"] + list(target_df['CTRD_NM'].unique()))
+                    if 'CTRD_NM' in target_df.columns:
+                        search_region = st.selectbox("📍 지역 필터", ["전국"] + list(target_df['CTRD_NM'].unique()))
+                    else:
+                        search_region = "전국"
+                        
                     meat_type = st.multiselect("🥩 취급 육종", target_df['LVSTCKSPC_NM'].unique(), default=["돼지", "소"])
-    
+
             with col_chart:
-                # 💡 연도 먼저 필터링
                 df_filtered = target_df[target_df['Year'] == selected_year].copy()
                 
-                # 💡 '전체'를 고르면 해당 연도의 모든 데이터를 합산하고, 특정 월을 고르면 그 달만 필터링!
                 if selected_month != "전체 (1년치 합산)":
                     df_filtered = df_filtered[df_filtered['Month'] == selected_month]
                     chart_title_date = f"{selected_year}년 {selected_month}월"
                 else:
                     chart_title_date = f"{selected_year}년 전체 누적"
                     
-                if search_region != "전국":
+                if search_region != "전국" and 'CTRD_NM' in df_filtered.columns:
                     df_filtered = df_filtered[df_filtered['CTRD_NM'] == search_region]
                 if meat_type:
                     df_filtered = df_filtered[df_filtered['LVSTCKSPC_NM'].isin(meat_type)]
