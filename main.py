@@ -116,12 +116,11 @@ tab_b2b, tab_b2c = st.tabs(["🏢 B2B 바이어 (도축 실적 분석)", "🛒 B
 
 # ----------------- B2B 탭 -----------------
 with tab_b2b:
-    # 🚨 [복구 완료] 파이썬 마법 주문(import)과 기존 데이터 불러오기 부활!
     import pandas as pd
     import plotly.express as px
     
+    # 통계 데이터 불러오기
     try:
-        # 네가 원래 가지고 있던 B2B 통계 데이터들 다시 불러오기
         df_reg = pd.read_csv("all_stats_data.csv")
         df_slau = pd.read_csv("slaughterhouse_by_type_stats.csv")
     except Exception:
@@ -137,14 +136,13 @@ with tab_b2b:
     )
     
     # ==========================================
-    # 💡 1. 새로 추가된 [이력제 품질/산지 증명] 파트
+    # 💡 1. [이력제 품질/산지 증명] 파트
     # ==========================================
     if view_mode == "🥩 샘플 이력(Sourcing) 품질/산지 검증":
         st.markdown("#### 🔬 바이어 맞춤형: 확보된 고기(Lot)의 품질 및 산지 검증 보드")
         st.caption("💡 바이어가 구매를 검토 중인 이력/묶음번호 샘플들의 실제 품질을 추적한 결과입니다.")
         
         try:
-            # 이력제 데이터 불러오기
             df_trace = pd.read_csv("animal_traceability_data.csv")
             
             col_chart1, col_chart2 = st.columns(2)
@@ -198,11 +196,11 @@ with tab_b2b:
             st.error("⚠️ 깃허브 폴더에 'animal_traceability_data.csv' 파일이 없습니다. 파일을 업로드해주세요!")
             
     # ==========================================
-    # 💡 2. 기존 통계 파트 (거시/미시 통계)
+    # 💡 2. 기존 통계 파트 + TOP 10 토글 연동
     # ==========================================
     else:
         if df_reg.empty or df_slau.empty:
-            st.error("⚠️ 통계 데이터를 불러오지 못했습니다. 'all_stats_data.csv' 와 'slaughterhouse_by_type_stats.csv' 파일이 있는지 확인해주세요.")
+            st.error("⚠️ 통계 데이터를 불러오지 못했습니다. 깃허브에 'all_stats_data.csv' 와 'slaughterhouse_by_type_stats.csv' 파일이 있는지 확인해주세요.")
         else:
             col_filter, col_chart = st.columns([1, 2.5])
             
@@ -250,19 +248,47 @@ with tab_b2b:
                 
                 if not df_filtered.empty:
                     theme_colors = {'돼지': '#1B2A47', '소': '#E11D48', '닭': '#475569', '오리': '#94A3B8'}
+                    
+                    # 1. 도축 실적 기준으로 깔끔하게 정렬
                     fig_df = df_filtered.groupby([region_col, 'LVSTCKSPC_NM'])['THSMON'].sum().reset_index()
-                    
-                    fig = px.bar(fig_df.sort_values('THSMON', ascending=False).head(20), 
-                                 x=region_col, y='THSMON', color='LVSTCKSPC_NM',
-                                 color_discrete_map=theme_colors, 
-                                 title=f"📈 {chart_title_date} 도축 물량 현황 (TOP 20)",
-                                 labels={region_col: '지역/도축장', 'THSMON': '도축량(두)', 'LVSTCKSPC_NM': '육종'})
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    st.subheader(f"🏆 {chart_title_date} 세부 데이터 표")
                     rank_df = fig_df.sort_values('THSMON', ascending=False).reset_index(drop=True)
                     rank_df.index += 1
                     rank_df.columns = ['지역/도축장명', '취급육종', '도축량(두)']
+                        
+                    # 2. TOP 10 업체 정보 상세 보기 토글 (클릭하면 열림)
+                    st.markdown(f"### 🏆 {chart_title_date} 실적 TOP 10 상세정보")
+                    st.caption("도축 실적(물량) 기준으로 산정된 상위 10개입니다. 클릭하여 펼쳐보세요!")
+                    
+                    top_10_df = rank_df.head(10)
+                    
+                    for i, row in top_10_df.iterrows():
+                        place_name = row['지역/도축장명']
+                        meat_type = row['취급육종']
+                        amount = int(row['도축량(두)'])
+                        
+                        if i == 1: medal = "🥇 1위"
+                        elif i == 2: medal = "🥈 2위"
+                        elif i == 3: medal = "🥉 3위"
+                        else: medal = f"🏅 {i}위"
+                        
+                        with st.expander(f"**{medal} | {place_name}** (물량: {amount:,.0f}두)"):
+                            st.markdown(f"**🥩 주요 취급육종:** {meat_type}")
+                            st.markdown(f"**📈 도축 실적:** {amount:,.0f}두")
+                                    
+                    st.divider() # 깔끔한 구분선
+                    
+                    # 3. TOP 10 차트
+                    fig = px.bar(top_10_df, 
+                                 x='지역/도축장명', y='도축량(두)', color='취급육종',
+                                 color_discrete_map=theme_colors, 
+                                 title=f"📊 {chart_title_date} 도축 물량 현황 차트 (TOP 10)",
+                                 text_auto='.2s',
+                                 labels={'지역/도축장명': '지역/도축장', '도축량(두)': '도축량(두)', '취급육종': '육종'})
+                    fig.update_traces(textfont_size=12, textangle=0, textposition="outside", cliponaxis=False)
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # 4. 전체 순위표 (100위까지 모두 포함)
+                    st.subheader(f"📋 {chart_title_date} 전체 세부 데이터 순위표")
                     st.dataframe(rank_df, use_container_width=True)
                 else:
                     st.info("해당 조건에 맞는 데이터가 없습니다.")
