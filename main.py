@@ -116,6 +116,18 @@ tab_b2b, tab_b2c = st.tabs(["🏢 B2B 바이어 (도축 실적 분석)", "🛒 B
 
 # ----------------- B2B 탭 -----------------
 with tab_b2b:
+    # 🚨 [복구 완료] 파이썬 마법 주문(import)과 기존 데이터 불러오기 부활!
+    import pandas as pd
+    import plotly.express as px
+    
+    try:
+        # 네가 원래 가지고 있던 B2B 통계 데이터들 다시 불러오기
+        df_reg = pd.read_csv("all_stats_data.csv")
+        df_slau = pd.read_csv("slaughterhouse_by_type_stats.csv")
+    except Exception:
+        df_reg = pd.DataFrame()
+        df_slau = pd.DataFrame()
+
     st.markdown("<h3 style='color: #E11D48;'>📊 지역 및 도축장별 세부 실적 분석</h3>", unsafe_allow_html=True)
     
     view_mode = st.radio(
@@ -132,6 +144,7 @@ with tab_b2b:
         st.caption("💡 바이어가 구매를 검토 중인 이력/묶음번호 샘플들의 실제 품질을 추적한 결과입니다.")
         
         try:
+            # 이력제 데이터 불러오기
             df_trace = pd.read_csv("animal_traceability_data.csv")
             
             col_chart1, col_chart2 = st.columns(2)
@@ -187,7 +200,7 @@ with tab_b2b:
     # ==========================================
     # 💡 2. 기존 통계 파트 (거시/미시 통계)
     # ==========================================
-    else:  # <- 이 방어막 덕분에 버튼을 누를 때마다 화면이 깔끔하게 전환됩니다!
+    else:
         if df_reg.empty or df_slau.empty:
             st.error("⚠️ 통계 데이터를 불러오지 못했습니다. 'all_stats_data.csv' 와 'slaughterhouse_by_type_stats.csv' 파일이 있는지 확인해주세요.")
         else:
@@ -199,8 +212,8 @@ with tab_b2b:
                     target_df = target_df.copy()
                     
                     if 'YM' in target_df.columns:
-                        target_df['Year'] = target_df['YM'].str[:4]
-                        target_df['Month'] = target_df['YM'].str[4:]
+                        target_df['Year'] = target_df['YM'].astype(str).str[:4]
+                        target_df['Month'] = target_df['YM'].astype(str).str[4:]
                     else:
                         target_df['Year'] = "2024"
                         target_df['Month'] = "01"
@@ -253,7 +266,6 @@ with tab_b2b:
                     st.dataframe(rank_df, use_container_width=True)
                 else:
                     st.info("해당 조건에 맞는 데이터가 없습니다.")
-    
     # ----------------- B2C 탭 (실시간 연동 버전) -----------------
     with tab_b2c:
         st.markdown("<h3 style='color: #1B2A47; text-align: center;'>🥩 내가 먹는 고기, 어디서 왔을까?</h3>", unsafe_allow_html=True)
