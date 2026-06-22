@@ -131,167 +131,104 @@ with tab_b2b:
     
     view_mode = st.radio(
         "🔍 분석 단위 선택", 
-        ["시/도별 거시 통계", "도축장별 미시 통계", "🥩 샘플 이력(Sourcing) 품질/산지 검증"], 
+        ["시/도별 거시 통계", "도축장별 미시 통계"], 
         horizontal=True
     )
     
-    # ==========================================
-    # 💡 1. [이력제 품질/산지 증명] 파트
-    # ==========================================
-    if view_mode == "🥩 샘플 이력(Sourcing) 품질/산지 검증":
-        st.markdown("#### 🔬 바이어 맞춤형: 확보된 고기(Lot)의 품질 및 산지 검증 보드")
-        st.caption("💡 바이어가 구매를 검토 중인 이력/묶음번호 샘플들의 실제 품질을 추적한 결과입니다.")
-        
-        try:
-            df_trace = pd.read_csv("animal_traceability_data.csv")
-            
-            col_chart1, col_chart2 = st.columns(2)
-            
-            with col_chart1:
-                with st.container(border=True):
-                    if 'gradeNm' in df_trace.columns:
-                        valid_grades = df_trace['gradeNm'].dropna()
-                        valid_grades = valid_grades[valid_grades != '']
-                        if not valid_grades.empty:
-                            grade_counts = valid_grades.value_counts().reset_index()
-                            grade_counts.columns = ['등급', '수량']
-                            fig_pie = px.pie(grade_counts, names='등급', values='수량', 
-                                             title="🏆 검토 물량 품질(등급) 분포", hole=0.4,
-                                             color_discrete_sequence=px.colors.sequential.RdBu)
-                            st.plotly_chart(fig_pie, use_container_width=True)
-                        else:
-                            st.info("해당 샘플에는 등급 데이터가 없습니다.")
-                            
-            with col_chart2:
-                with st.container(border=True):
-                    if 'farmAddr' in df_trace.columns:
-                        df_trace['Region'] = df_trace['farmAddr'].astype(str).apply(
-                            lambda x: x.split()[0] if x != 'nan' else '알수없음'
-                        )
-                        region_data = df_trace[df_trace['Region'] != '알수없음']
-                        if not region_data.empty:
-                            region_counts = region_data['Region'].value_counts().reset_index()
-                            region_counts.columns = ['산지', '수량']
-                            fig_bar = px.bar(region_counts, x='산지', y='수량', 
-                                             title="🏡 주요 사육 산지 분포",
-                                             color='산지', color_discrete_sequence=px.colors.qualitative.Set3)
-                            st.plotly_chart(fig_bar, use_container_width=True)
-                        else:
-                            st.info("해당 샘플에는 산지 데이터가 없습니다.")
-            
-            st.subheader("📋 전체 상세 이력 검증 데이터")
-            show_cols = ['검색한_이력번호', 'butcheryPlaceNm', 'lsTypeNm', 'gradeNm', 'farmAddr', 'butcheryYmd']
-            existing_cols = [col for col in show_cols if col in df_trace.columns]
-            
-            display_df = df_trace[existing_cols].copy()
-            rename_dict = {
-                '검색한_이력번호': '이력/묶음번호', 'butcheryPlaceNm': '도축장명', 
-                'lsTypeNm': '축종', 'gradeNm': '등급', 
-                'farmAddr': '사육장 주소', 'butcheryYmd': '도축일자'
-            }
-            display_df = display_df.rename(columns=rename_dict)
-            st.dataframe(display_df.dropna(how='all'), use_container_width=True)
-            
-        except FileNotFoundError:
-            st.error("⚠️ 깃허브 폴더에 'animal_traceability_data.csv' 파일이 없습니다. 파일을 업로드해주세요!")
-            
-    # ==========================================
-    # 💡 2. 기존 통계 파트 + TOP 10 토글 연동
-    # ==========================================
+    
+    if df_reg.empty or df_slau.empty:
+        st.error("⚠️ 통계 데이터를 불러오지 못했습니다. 깃허브에 'all_stats_data.csv' 와 'slaughterhouse_by_type_stats.csv' 파일이 있는지 확인해주세요.")
     else:
-        if df_reg.empty or df_slau.empty:
-            st.error("⚠️ 통계 데이터를 불러오지 못했습니다. 깃허브에 'all_stats_data.csv' 와 'slaughterhouse_by_type_stats.csv' 파일이 있는지 확인해주세요.")
-        else:
-            col_filter, col_chart = st.columns([1, 2.5])
-            
-            with col_filter:
-                with st.container(border=True):
-                    target_df = df_reg if view_mode == "시/도별 거시 통계" else df_slau
-                    target_df = target_df.copy()
+        col_filter, col_chart = st.columns([1, 2.5])
+        
+        with col_filter:
+            with st.container(border=True):
+                target_df = df_reg if view_mode == "시/도별 거시 통계" else df_slau
+                target_df = target_df.copy()
+                
+                if 'YM' in target_df.columns:
+                    target_df['Year'] = target_df['YM'].astype(str).str[:4]
+                    target_df['Month'] = target_df['YM'].astype(str).str[4:]
+                else:
+                    target_df['Year'] = "2024"
+                    target_df['Month'] = "01"
                     
-                    if 'YM' in target_df.columns:
-                        target_df['Year'] = target_df['YM'].astype(str).str[:4]
-                        target_df['Month'] = target_df['YM'].astype(str).str[4:]
-                    else:
-                        target_df['Year'] = "2024"
-                        target_df['Month'] = "01"
-                        
-                    region_col = 'CTRD_NM' if view_mode == "시/도별 거시 통계" else 'SLAU_PLACE_NM'
+                region_col = 'CTRD_NM' if view_mode == "시/도별 거시 통계" else 'SLAU_PLACE_NM'
+                
+                year_list = sorted(target_df['Year'].unique(), reverse=True)
+                selected_year = st.selectbox("📅 연도 선택", year_list)
+                
+                available_months = sorted(target_df[target_df['Year'] == selected_year]['Month'].unique())
+                month_list = ["전체 (1년치 합산)"] + available_months
+                selected_month = st.selectbox("🗓️ 월 선택", month_list)
+                
+                if 'CTRD_NM' in target_df.columns:
+                    search_region = st.selectbox("📍 지역 필터", ["전국"] + list(target_df['CTRD_NM'].unique()))
+                else:
+                    search_region = "전국"
                     
-                    year_list = sorted(target_df['Year'].unique(), reverse=True)
-                    selected_year = st.selectbox("📅 연도 선택", year_list)
-                    
-                    available_months = sorted(target_df[target_df['Year'] == selected_year]['Month'].unique())
-                    month_list = ["전체 (1년치 합산)"] + available_months
-                    selected_month = st.selectbox("🗓️ 월 선택", month_list)
-                    
-                    if 'CTRD_NM' in target_df.columns:
-                        search_region = st.selectbox("📍 지역 필터", ["전국"] + list(target_df['CTRD_NM'].unique()))
-                    else:
-                        search_region = "전국"
-                        
-                    meat_type = st.multiselect("🥩 취급 육종", target_df['LVSTCKSPC_NM'].unique(), default=["돼지", "소"])
+                meat_type = st.multiselect("🥩 취급 육종", target_df['LVSTCKSPC_NM'].unique(), default=["돼지", "소"])
 
-            with col_chart:
-                df_filtered = target_df[target_df['Year'] == selected_year].copy()
+        with col_chart:
+            df_filtered = target_df[target_df['Year'] == selected_year].copy()
+            
+            if selected_month != "전체 (1년치 합산)":
+                df_filtered = df_filtered[df_filtered['Month'] == selected_month]
+                chart_title_date = f"{selected_year}년 {selected_month}월"
+            else:
+                chart_title_date = f"{selected_year}년 전체 누적"
                 
-                if selected_month != "전체 (1년치 합산)":
-                    df_filtered = df_filtered[df_filtered['Month'] == selected_month]
-                    chart_title_date = f"{selected_year}년 {selected_month}월"
-                else:
-                    chart_title_date = f"{selected_year}년 전체 누적"
-                    
-                if search_region != "전국" and 'CTRD_NM' in df_filtered.columns:
-                    df_filtered = df_filtered[df_filtered['CTRD_NM'] == search_region]
-                if meat_type:
-                    df_filtered = df_filtered[df_filtered['LVSTCKSPC_NM'].isin(meat_type)]
+            if search_region != "전국" and 'CTRD_NM' in df_filtered.columns:
+                df_filtered = df_filtered[df_filtered['CTRD_NM'] == search_region]
+            if meat_type:
+                df_filtered = df_filtered[df_filtered['LVSTCKSPC_NM'].isin(meat_type)]
+            
+            if not df_filtered.empty:
+                theme_colors = {'돼지': '#1B2A47', '소': '#E11D48', '닭': '#475569', '오리': '#94A3B8'}
                 
-                if not df_filtered.empty:
-                    theme_colors = {'돼지': '#1B2A47', '소': '#E11D48', '닭': '#475569', '오리': '#94A3B8'}
+                # 1. 도축 실적 기준으로 깔끔하게 정렬
+                fig_df = df_filtered.groupby([region_col, 'LVSTCKSPC_NM'])['THSMON'].sum().reset_index()
+                rank_df = fig_df.sort_values('THSMON', ascending=False).reset_index(drop=True)
+                rank_df.index += 1
+                rank_df.columns = ['지역/도축장명', '취급육종', '도축량(두)']
                     
-                    # 1. 도축 실적 기준으로 깔끔하게 정렬
-                    fig_df = df_filtered.groupby([region_col, 'LVSTCKSPC_NM'])['THSMON'].sum().reset_index()
-                    rank_df = fig_df.sort_values('THSMON', ascending=False).reset_index(drop=True)
-                    rank_df.index += 1
-                    rank_df.columns = ['지역/도축장명', '취급육종', '도축량(두)']
-                        
-                    # 2. TOP 10 업체 정보 상세 보기 토글 (클릭하면 열림)
-                    st.markdown(f"### 🏆 {chart_title_date} 실적 TOP 10 상세정보")
-                    st.caption("도축 실적(물량) 기준으로 산정된 상위 10개입니다. 클릭하여 펼쳐보세요!")
+                # 2. TOP 10 업체 정보 상세 보기 토글 (클릭하면 열림)
+                st.markdown(f"### 🏆 {chart_title_date} 실적 TOP 10 상세정보")
+                st.caption("도축 실적(물량) 기준으로 산정된 상위 10개입니다. 클릭하여 펼쳐보세요!")
+                
+                top_10_df = rank_df.head(10)
+                
+                for i, row in top_10_df.iterrows():
+                    place_name = row['지역/도축장명']
+                    meat_type = row['취급육종']
+                    amount = int(row['도축량(두)'])
                     
-                    top_10_df = rank_df.head(10)
+                    if i == 1: medal = "🥇 1위"
+                    elif i == 2: medal = "🥈 2위"
+                    elif i == 3: medal = "🥉 3위"
+                    else: medal = f"🏅 {i}위"
                     
-                    for i, row in top_10_df.iterrows():
-                        place_name = row['지역/도축장명']
-                        meat_type = row['취급육종']
-                        amount = int(row['도축량(두)'])
-                        
-                        if i == 1: medal = "🥇 1위"
-                        elif i == 2: medal = "🥈 2위"
-                        elif i == 3: medal = "🥉 3위"
-                        else: medal = f"🏅 {i}위"
-                        
-                        with st.expander(f"**{medal} | {place_name}** (물량: {amount:,.0f}두)"):
-                            st.markdown(f"**🥩 주요 취급육종:** {meat_type}")
-                            st.markdown(f"**📈 도축 실적:** {amount:,.0f}두")
-                                    
-                    st.divider() # 깔끔한 구분선
-                    
-                    # 3. TOP 10 차트
-                    fig = px.bar(top_10_df, 
-                                 x='지역/도축장명', y='도축량(두)', color='취급육종',
-                                 color_discrete_map=theme_colors, 
-                                 title=f"📊 {chart_title_date} 도축 물량 현황 차트 (TOP 10)",
-                                 text_auto='.2s',
-                                 labels={'지역/도축장명': '지역/도축장', '도축량(두)': '도축량(두)', '취급육종': '육종'})
-                    fig.update_traces(textfont_size=12, textangle=0, textposition="outside", cliponaxis=False)
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # 4. 전체 순위표 (100위까지 모두 포함)
-                    st.subheader(f"📋 {chart_title_date} 전체 세부 데이터 순위표")
-                    st.dataframe(rank_df, use_container_width=True)
-                else:
-                    st.info("해당 조건에 맞는 데이터가 없습니다.")
+                    with st.expander(f"**{medal} | {place_name}** (물량: {amount:,.0f}두)"):
+                        st.markdown(f"**🥩 주요 취급육종:** {meat_type}")
+                        st.markdown(f"**📈 도축 실적:** {amount:,.0f}두")
+                                
+                st.divider() # 깔끔한 구분선
+                
+                # 3. TOP 10 차트
+                fig = px.bar(top_10_df, 
+                             x='지역/도축장명', y='도축량(두)', color='취급육종',
+                             color_discrete_map=theme_colors, 
+                             title=f"📊 {chart_title_date} 도축 물량 현황 차트 (TOP 10)",
+                             text_auto='.2s',
+                             labels={'지역/도축장명': '지역/도축장', '도축량(두)': '도축량(두)', '취급육종': '육종'})
+                fig.update_traces(textfont_size=12, textangle=0, textposition="outside", cliponaxis=False)
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # 4. 전체 순위표 (100위까지 모두 포함)
+                st.subheader(f"📋 {chart_title_date} 전체 세부 데이터 순위표")
+                st.dataframe(rank_df, use_container_width=True)
+            else:
+                st.info("해당 조건에 맞는 데이터가 없습니다.")
     # ----------------- B2C 탭 (실시간 연동 버전) -----------------
     with tab_b2c:
         st.markdown("<h3 style='color: #1B2A47; text-align: center;'>🥩 내가 먹는 고기, 어디서 왔을까?</h3>", unsafe_allow_html=True)
