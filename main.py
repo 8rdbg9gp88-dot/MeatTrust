@@ -23,7 +23,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 인트로(대문) 화면 (bg_image.jpg 완벽 적용)
+# 2. 인트로(대문) 화면
 # ==========================================
 def get_base64_of_bin_file(bin_file):
     try:
@@ -75,7 +75,7 @@ if "intro_done" not in st.session_state:
     st.stop()
 
 # ==========================================
-# 3. 데이터 로드 (시도별 + 도축장별 완벽 통합)
+# 3. 데이터 로드
 # ==========================================
 @st.cache_data
 def load_all_data():
@@ -105,7 +105,7 @@ df_reg, df_slau = load_all_data()
 # 4. 메인 대시보드
 # ==========================================
 st.markdown("<h1 style='color: #1B2A47;'>🥩 Meatrust 대시보드</h1>", unsafe_allow_html=True)
-st.success("✅ 공공데이터포털(농림축산식품부) 공식 데이터 2종 연동 완료 및 시스템 정상 가동 중")
+st.success("✅ 공공데이터포털(농림축산식품부) 공식 데이터 연동 완료 및 시스템 정상 가동 중")
 st.markdown("---")
 
 tab_b2b, tab_b2c = st.tabs(["🏢 B2B 바이어 (도축 실적 분석)", "🛒 B2C 소비자 (안심 이력 조회)"])
@@ -116,20 +116,20 @@ with tab_b2b:
     
     view_mode = st.radio(
         "🔍 분석 단위 선택", 
-        ["시/도별 거시 통계", "도축장별 미시 통계"], 
+        ["도축장별 미시 통계", "시/도별 거시 통계"], 
         horizontal=True
     )
     
-    if df_reg.empty or df_slau.empty:
-        st.error("⚠️ 통계 데이터를 불러오지 못했습니다. 깃허브에 'all_stats_data.csv' 와 'slaughterhouse_by_type_stats.csv' 파일이 있는지 확인해주세요.")
+    target_df = df_reg if view_mode == "시/도별 거시 통계" else df_slau
+    
+    if target_df.empty:
+        st.error(f"⚠️ '{view_mode}' 관련 엑셀 데이터를 깃허브에서 찾을 수 없습니다. 다른 버튼을 선택해주세요.")
     else:
+        target_df = target_df.copy()
         col_filter, col_chart = st.columns([1, 2.5])
         
         with col_filter:
             with st.container(border=True):
-                target_df = df_reg if view_mode == "시/도별 거시 통계" else df_slau
-                target_df = target_df.copy()
-                
                 if 'YM' in target_df.columns:
                     target_df['Year'] = target_df['YM'].astype(str).str[:4]
                     target_df['Month'] = target_df['YM'].astype(str).str[4:]
